@@ -8,7 +8,7 @@ from rdflib.namespace import RDF, RDFS, SKOS, XSD, DOAP, FOAF, OWL
 from namespace import NamespaceManager, split_uri
 from graph_element import Node
 from utils import Config, SCHEMA
-
+import collections
 
 query_classes = prepareQuery("""
 SELECT ?s {
@@ -21,6 +21,13 @@ SELECT ?s {
   FILTER ( ?property IN ( owl:DatatypeProperty, owl:ObjectProperty ) )
 } """, initNs={'owl': OWL})
 common_ns = set(map(lambda ns: ns.uri, (RDF, RDFS, SKOS, SCHEMA, XSD, DOAP, FOAF)))
+
+bnodes_rendered_as_list = []
+
+
+
+
+
 
 
 class OntologyGraph:
@@ -45,6 +52,21 @@ class OntologyGraph:
         self.literals = set()
         self._read_graph()
 
+    def is_leafy(self, o):
+
+        leafy_namespaces = [
+            'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+            'http://www.w3.org/2000/01/rdf-schema#',
+            'http://www.w3.org/2001/XMLSchema#',
+        ]
+        leafy_nodes = []
+        for i in leafy_namespaces:
+            if o.startswith(i):
+                return True
+        for i in leafy_nodes:
+            if o == rdflib.term.URIRef(i):
+                return True
+
     @staticmethod
     def _load_files(graph, files, format='ttl'):
         if isinstance(files, str):
@@ -53,10 +75,18 @@ class OntologyGraph:
             graph.load(file, format=format)
 
     def _read_graph(self):
+        leafys = collections.defaultdict(int)
         for s, p, o in self.g:
             if any(uri in self.config.blacklist for uri in (s, p, o)):
                 continue
-            if p == RDF.type:
+            if self.is_leafy(o):
+                uuid = leafys[o]
+                leafys[o] += 1
+                id = o + '\n(' + uuid + ')'
+                e = (s, p, id)
+                print(("is_leafy", e))
+                self.add_edge(e)
+            elif p == RDF.type:
                 if o == OWL.Class:
                     self.add_to_classes(s)
                 else:
